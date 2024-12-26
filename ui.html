@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: Inter, sans-serif;
+            padding: 20px;
+        }
+        .input-group {
+            margin-bottom: 12px;
+        }
+        label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #e5e5e5;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .toggle-group label {
+            margin: 0;
+            margin-left: 8px;
+        }
+        .custom-widths {
+            margin-top: 8px;
+            display: none;
+        }
+        .custom-widths.visible {
+            display: block;
+        }
+        .custom-widths input {
+            font-family: monospace;
+        }
+        button {
+            background: #18A0FB;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            width: 100%;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0D8DE3;
+        }
+    </style>
+</head>
+<body>
+    <div class="input-group">
+        <label for="columns">Number of Columns</label>
+        <input type="number" id="columns" value="5" min="1">
+    </div>
+    <div class="input-group">
+        <label for="columnGap">Column Gap (pixels)</label>
+        <input type="number" id="columnGap" value="40" min="0">
+    </div>
+    <div class="toggle-group">
+        <input type="checkbox" id="customWidths">
+        <label for="customWidths">Use custom column widths</label>
+    </div>
+    <div class="custom-widths" id="customWidthsGroup">
+        <div class="input-group">
+            <label for="columnWidths">Column Widths (comma-separated pixels)</label>
+            <input type="text" id="columnWidths" placeholder="100, 200, 150, 100, 200">
+        </div>
+    </div>
+    <div class="input-group">
+        <label for="lineGap">Line Gap (pixels)</label>
+        <input type="number" id="lineGap" value="4" min="0">
+    </div>
+    <button id="create">Create Lines</button>
+    <script>
+        const customWidthsToggle = document.getElementById('customWidths');
+        const customWidthsGroup = document.getElementById('customWidthsGroup');
+        const columnsInput = document.getElementById('columns');
+        const columnWidthsInput = document.getElementById('columnWidths');
+
+        customWidthsToggle.onchange = (e) => {
+            customWidthsGroup.classList.toggle('visible', e.target.checked);
+        };
+
+        columnsInput.onchange = (e) => {
+            if (!customWidthsToggle.checked) return;
+            const count = parseInt(e.target.value);
+            const defaultWidth = 100;
+            columnWidthsInput.placeholder = Array(count).fill(defaultWidth).join(', ');
+        };
+
+        document.getElementById('create').onclick = () => {
+            const columns = parseInt(document.getElementById('columns').value);
+            const columnGap = parseInt(document.getElementById('columnGap').value);
+            const lineGap = parseInt(document.getElementById('lineGap').value);
+            const useCustomWidths = document.getElementById('customWidths').checked;
+            
+            let columnWidths = [];
+            if (useCustomWidths) {
+                const widthsStr = document.getElementById('columnWidths').value;
+                columnWidths = widthsStr.split(',').map(w => parseInt(w.trim())).filter(w => !isNaN(w));
+                
+                // If no valid widths provided, fall back to even distribution
+                if (columnWidths.length === 0) {
+                    columnWidths = [];
+                }
+            }
+
+            parent.postMessage({ 
+                pluginMessage: { 
+                    type: 'create-lines', 
+                    columns,
+                    columnGap,
+                    lineGap,
+                    useCustomWidths,
+                    columnWidths
+                } 
+            }, '*');
+        };
+    </script>
+</body>
+</html>
