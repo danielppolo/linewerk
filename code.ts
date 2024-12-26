@@ -7,14 +7,14 @@
 // full browser environment (See https://www.figma.com/plugin-docs/how-plugins-run).
 
 // This shows the HTML page in "ui.html".
-figma.showUI(__html__, { width: 240, height: 320 });
+figma.showUI(__html__, { width: 240, height: 340 });
 
 // Calls to "parent.postMessage" from within the HTML page will trigger this
 // callback. The callback will be passed the "pluginMessage" property of the
 // posted message.
 figma.ui.onmessage = async (msg) => {
   if (msg.type === 'create-lines') {
-    const { columns, columnGap, lineGap, useCustomWidths, columnWidths } = msg;
+    const { widths, lineGap } = msg;
     
     // Get the selected frame or create a new one if none is selected
     let frame = figma.currentPage.selection[0] as FrameNode;
@@ -30,76 +30,59 @@ figma.ui.onmessage = async (msg) => {
     const frameWidth = frame.width;
     const frameHeight = frame.height;
     
-    // Determine column widths based on mode
-    let effectiveColumnWidths: number[] = [];
-    if (useCustomWidths && columnWidths.length > 0) {
-      // Use provided custom widths
-      effectiveColumnWidths = columnWidths;
-      
-      // Adjust frame width to fit custom columns if needed
-      const totalWidth = columnWidths.reduce((sum: number, width: number) => sum + width, 0) + 
-                        (columnGap * (columnWidths.length - 1));
-      if (totalWidth > frameWidth) {
-        frame.resize(totalWidth, frameHeight);
-      }
-    } else {
-      // Calculate even column widths
-      const columnWidth = (frameWidth - (columnGap * (columns - 1))) / columns;
-      effectiveColumnWidths = Array(columns).fill(columnWidth);
-    }
-    
     // Calculate number of lines that will fit in the height
     const numberOfLines = Math.floor((frameHeight - lineGap) / lineGap);
 
     // Track current X position
     let currentX = 0;
 
-    // Create lines for each column
-    for (let col = 0; col < effectiveColumnWidths.length; col++) {
-      const columnWidth = effectiveColumnWidths[col];
+    // Process widths (they alternate between column and gap)
+    for (let i = 0; i < widths.length; i++) {
+      const width = (widths[i] / 100) * frameWidth;
       
-      // Create horizontal lines within the column
-      for (let lineIndex = 0; lineIndex <= numberOfLines; lineIndex++) {
-        const line = figma.createVector();
-        const y = lineIndex * lineGap;
-        
-        // Set the line points (horizontal line spanning the column)
-        await line.setVectorNetworkAsync({
-          vertices: [
-            { x: currentX, y: y },
-            { x: currentX + columnWidth, y: y }
-          ],
-          segments: [
-            {
-              start: 0,
-              end: 1
-            }
-          ]
-        });
+      // Even indices are columns, odd indices are gaps
+      if (i % 2 === 0) {
+        // Create horizontal lines within the column
+        for (let lineIndex = 0; lineIndex <= numberOfLines; lineIndex++) {
+          const line = figma.createVector();
+          const y = lineIndex * lineGap;
+          
+          // Set the line points (horizontal line spanning the column)
+          await line.setVectorNetworkAsync({
+            vertices: [
+              { x: currentX, y: y },
+              { x: currentX + width, y: y }
+            ],
+            segments: [
+              {
+                start: 0,
+                end: 1
+              }
+            ]
+          });
 
-        // Style the line
-        line.strokes = [{
-          type: 'SOLID',
-          color: { r: 0, g: 0, b: 0 }
-        }];
-        line.strokeWeight = 1;
+          // Style the line
+          line.strokes = [{
+            type: 'SOLID',
+            color: { r: 0, g: 0, b: 0 }
+          }];
+          line.strokeWeight = 1;
 
-        // Add to frame
-        frame.appendChild(line);
-        lines.push(line);
+          // Add to frame
+          frame.appendChild(line);
+          lines.push(line);
+        }
       }
-
-      // Move X position to next column
-      currentX += columnWidth + columnGap;
+      
+      // Move X position by the width (whether it's a column or gap)
+      currentX += width;
     }
 
     // Select all created lines
     figma.currentPage.selection = lines;
     
     // Notify the user
-    const message = useCustomWidths && columnWidths.length > 0
-      ? `Created ${lines.length} lines across ${columnWidths.length} custom-width columns`
-      : `Created ${lines.length} lines across ${columns} even columns`;
-    figma.notify(message);
+    const numberOfColumns = Math.ceil(widths.length / 2);
+    figma.notify(`Created ${lines.length} lines across ${numberOfColumns} columns`);
   }
 };

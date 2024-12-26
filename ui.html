@@ -30,15 +30,23 @@
             margin: 0;
             margin-left: 8px;
         }
-        .custom-widths {
-            margin-top: 8px;
+        .uniform-controls, .custom-controls {
             display: none;
         }
-        .custom-widths.visible {
+        .uniform-controls.visible, .custom-controls.visible {
             display: block;
         }
-        .custom-widths input {
+        .custom-controls input {
             font-family: monospace;
+        }
+        .error-message {
+            color: #F24822;
+            font-size: 11px;
+            margin-top: 4px;
+            display: none;
+        }
+        .error-message.visible {
+            display: block;
         }
         button {
             background: #18A0FB;
@@ -53,74 +61,129 @@
         button:hover {
             background: #0D8DE3;
         }
+        button:disabled {
+            background: #E5E5E5;
+            cursor: not-allowed;
+        }
+        .helper-text {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
-    <div class="input-group">
-        <label for="columns">Number of Columns</label>
-        <input type="number" id="columns" value="5" min="1">
-    </div>
-    <div class="input-group">
-        <label for="columnGap">Column Gap (pixels)</label>
-        <input type="number" id="columnGap" value="40" min="0">
+    <div class="toggle-group">
+        <input type="radio" id="uniformMode" name="mode" value="uniform" checked>
+        <label for="uniformMode">Uniform widths</label>
     </div>
     <div class="toggle-group">
-        <input type="checkbox" id="customWidths">
-        <label for="customWidths">Use custom column widths</label>
+        <input type="radio" id="customMode" name="mode" value="custom">
+        <label for="customMode">Custom widths</label>
     </div>
-    <div class="custom-widths" id="customWidthsGroup">
+
+    <div id="uniformControls" class="uniform-controls visible">
         <div class="input-group">
-            <label for="columnWidths">Column Widths (comma-separated pixels)</label>
-            <input type="text" id="columnWidths" placeholder="100, 200, 150, 100, 200">
+            <label for="columnWidth">Column Width (%)</label>
+            <input type="number" id="columnWidth" value="15" min="1" max="100">
+        </div>
+        <div class="input-group">
+            <label for="gapWidth">Gap Width (%)</label>
+            <input type="number" id="gapWidth" value="5" min="0" max="100">
         </div>
     </div>
+
+    <div id="customControls" class="custom-controls">
+        <div class="input-group">
+            <label for="customWidths">Column and Gap Widths (%)</label>
+            <input type="text" id="customWidths" placeholder="20, 5, 30, 5, 20">
+            <div class="helper-text">Format: column, gap, column, gap, column...</div>
+            <div id="errorMessage" class="error-message">Percentages must add up to 100%</div>
+        </div>
+    </div>
+
     <div class="input-group">
         <label for="lineGap">Line Gap (pixels)</label>
         <input type="number" id="lineGap" value="4" min="0">
     </div>
+
     <button id="create">Create Lines</button>
+
     <script>
-        const customWidthsToggle = document.getElementById('customWidths');
-        const customWidthsGroup = document.getElementById('customWidthsGroup');
-        const columnsInput = document.getElementById('columns');
-        const columnWidthsInput = document.getElementById('columnWidths');
+        const uniformMode = document.getElementById('uniformMode');
+        const customMode = document.getElementById('customMode');
+        const uniformControls = document.getElementById('uniformControls');
+        const customControls = document.getElementById('customControls');
+        const customWidthsInput = document.getElementById('customWidths');
+        const errorMessage = document.getElementById('errorMessage');
+        const createButton = document.getElementById('create');
 
-        customWidthsToggle.onchange = (e) => {
-            customWidthsGroup.classList.toggle('visible', e.target.checked);
-        };
+        function validatePercentages(values) {
+            if (values.length === 0) return false;
+            const sum = values.reduce((a, b) => a + b, 0);
+            return Math.abs(sum - 100) < 0.1; // Allow for small floating point differences
+        }
 
-        columnsInput.onchange = (e) => {
-            if (!customWidthsToggle.checked) return;
-            const count = parseInt(e.target.value);
-            const defaultWidth = 100;
-            columnWidthsInput.placeholder = Array(count).fill(defaultWidth).join(', ');
+        function updateVisibility() {
+            uniformControls.classList.toggle('visible', uniformMode.checked);
+            customControls.classList.toggle('visible', customMode.checked);
+            errorMessage.classList.remove('visible');
+            createButton.disabled = false;
+        }
+
+        uniformMode.onchange = updateVisibility;
+        customMode.onchange = updateVisibility;
+
+        customWidthsInput.oninput = (e) => {
+            if (!customMode.checked) return;
+            
+            const widthsStr = e.target.value;
+            const values = widthsStr.split(',')
+                .map(w => parseFloat(w.trim()))
+                .filter(w => !isNaN(w));
+            
+            const isValid = validatePercentages(values);
+            errorMessage.classList.toggle('visible', !isValid && widthsStr.length > 0);
+            createButton.disabled = !isValid && widthsStr.length > 0;
         };
 
         document.getElementById('create').onclick = () => {
-            const columns = parseInt(document.getElementById('columns').value);
-            const columnGap = parseInt(document.getElementById('columnGap').value);
+            const isUniform = uniformMode.checked;
             const lineGap = parseInt(document.getElementById('lineGap').value);
-            const useCustomWidths = document.getElementById('customWidths').checked;
             
-            let columnWidths = [];
-            if (useCustomWidths) {
-                const widthsStr = document.getElementById('columnWidths').value;
-                columnWidths = widthsStr.split(',').map(w => parseInt(w.trim())).filter(w => !isNaN(w));
+            let widths = [];
+            if (isUniform) {
+                const columnWidth = parseFloat(document.getElementById('columnWidth').value);
+                const gapWidth = parseFloat(document.getElementById('gapWidth').value);
                 
-                // If no valid widths provided, fall back to even distribution
-                if (columnWidths.length === 0) {
-                    columnWidths = [];
+                // Calculate how many columns can fit
+                const totalWidth = columnWidth + gapWidth;
+                const numberOfColumns = Math.floor((100 + gapWidth) / totalWidth);
+                
+                // Generate alternating column and gap widths
+                for (let i = 0; i < numberOfColumns; i++) {
+                    widths.push(columnWidth);
+                    if (i < numberOfColumns - 1) {
+                        widths.push(gapWidth);
+                    }
+                }
+            } else {
+                const widthsStr = document.getElementById('customWidths').value;
+                widths = widthsStr.split(',')
+                    .map(w => parseFloat(w.trim()))
+                    .filter(w => !isNaN(w));
+                
+                if (!validatePercentages(widths)) {
+                    widths = [];
                 }
             }
 
             parent.postMessage({ 
                 pluginMessage: { 
-                    type: 'create-lines', 
-                    columns,
-                    columnGap,
-                    lineGap,
-                    useCustomWidths,
-                    columnWidths
+                    type: 'create-lines',
+                    isUniform,
+                    widths,
+                    lineGap
                 } 
             }, '*');
         };
