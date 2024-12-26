@@ -38,20 +38,34 @@ figma.ui.onmessage = async (msg) => {
 
     // Process widths (they alternate between column and gap)
     for (let i = 0; i < widths.length; i++) {
-      const width = (widths[i] / 100) * frameWidth;
+      const width = widths[i];
+      
+      // Check if we've exceeded frame width
+      if (currentX >= frameWidth) {
+        break; // Stop creating columns if we've exceeded frame width
+      }
       
       // Even indices are columns, odd indices are gaps
       if (i % 2 === 0) {
+        // Adjust width if it would exceed frame boundaries
+        const effectiveWidth = Math.min(width, frameWidth - currentX);
+        
         // Create horizontal lines within the column
         for (let lineIndex = 0; lineIndex <= numberOfLines; lineIndex++) {
-          const line = figma.createVector();
           const y = lineIndex * lineGap;
+          
+          // Skip if line would be outside frame height
+          if (y > frameHeight) {
+            continue;
+          }
+          
+          const line = figma.createVector();
           
           // Set the line points (horizontal line spanning the column)
           await line.setVectorNetworkAsync({
             vertices: [
               { x: currentX, y: y },
-              { x: currentX + width, y: y }
+              { x: currentX + effectiveWidth, y: y }
             ],
             segments: [
               {
@@ -83,6 +97,7 @@ figma.ui.onmessage = async (msg) => {
     
     // Notify the user
     const numberOfColumns = Math.ceil(widths.length / 2);
-    figma.notify(`Created ${lines.length} lines across ${numberOfColumns} columns`);
+    const truncatedMessage = currentX > frameWidth ? ' (truncated to fit frame)' : '';
+    figma.notify(`Created ${lines.length} lines across ${numberOfColumns} columns${truncatedMessage}`);
   }
 };

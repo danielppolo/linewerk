@@ -84,21 +84,20 @@
 
     <div id="uniformControls" class="uniform-controls visible">
         <div class="input-group">
-            <label for="columnWidth">Column Width (%)</label>
-            <input type="number" id="columnWidth" value="15" min="1" max="100">
+            <label for="columnWidth">Column Width (pixels)</label>
+            <input type="number" id="columnWidth" value="100" min="1">
         </div>
         <div class="input-group">
-            <label for="gapWidth">Gap Width (%)</label>
-            <input type="number" id="gapWidth" value="5" min="0" max="100">
+            <label for="gapWidth">Gap Width (pixels)</label>
+            <input type="number" id="gapWidth" value="40" min="0">
         </div>
     </div>
 
     <div id="customControls" class="custom-controls">
         <div class="input-group">
-            <label for="customWidths">Column and Gap Widths (%)</label>
-            <input type="text" id="customWidths" placeholder="20, 5, 30, 5, 20">
+            <label for="customWidths">Column and Gap Widths (pixels)</label>
+            <input type="text" id="customWidths" placeholder="100, 40, 150, 40, 100">
             <div class="helper-text">Format: column, gap, column, gap, column...</div>
-            <div id="errorMessage" class="error-message">Percentages must add up to 100%</div>
         </div>
     </div>
 
@@ -115,37 +114,16 @@
         const uniformControls = document.getElementById('uniformControls');
         const customControls = document.getElementById('customControls');
         const customWidthsInput = document.getElementById('customWidths');
-        const errorMessage = document.getElementById('errorMessage');
         const createButton = document.getElementById('create');
-
-        function validatePercentages(values) {
-            if (values.length === 0) return false;
-            const sum = values.reduce((a, b) => a + b, 0);
-            return Math.abs(sum - 100) < 0.1; // Allow for small floating point differences
-        }
 
         function updateVisibility() {
             uniformControls.classList.toggle('visible', uniformMode.checked);
             customControls.classList.toggle('visible', customMode.checked);
-            errorMessage.classList.remove('visible');
             createButton.disabled = false;
         }
 
         uniformMode.onchange = updateVisibility;
         customMode.onchange = updateVisibility;
-
-        customWidthsInput.oninput = (e) => {
-            if (!customMode.checked) return;
-            
-            const widthsStr = e.target.value;
-            const values = widthsStr.split(',')
-                .map(w => parseFloat(w.trim()))
-                .filter(w => !isNaN(w));
-            
-            const isValid = validatePercentages(values);
-            errorMessage.classList.toggle('visible', !isValid && widthsStr.length > 0);
-            createButton.disabled = !isValid && widthsStr.length > 0;
-        };
 
         document.getElementById('create').onclick = () => {
             const isUniform = uniformMode.checked;
@@ -153,12 +131,12 @@
             
             let widths = [];
             if (isUniform) {
-                const columnWidth = parseFloat(document.getElementById('columnWidth').value);
-                const gapWidth = parseFloat(document.getElementById('gapWidth').value);
+                const columnWidth = parseInt(document.getElementById('columnWidth').value);
+                const gapWidth = parseInt(document.getElementById('gapWidth').value);
                 
-                // Calculate how many columns can fit
+                // Calculate how many columns can fit in 800px (default frame width)
                 const totalWidth = columnWidth + gapWidth;
-                const numberOfColumns = Math.floor((100 + gapWidth) / totalWidth);
+                const numberOfColumns = Math.floor((800 + gapWidth) / totalWidth);
                 
                 // Generate alternating column and gap widths
                 for (let i = 0; i < numberOfColumns; i++) {
@@ -170,18 +148,13 @@
             } else {
                 const widthsStr = document.getElementById('customWidths').value;
                 widths = widthsStr.split(',')
-                    .map(w => parseFloat(w.trim()))
+                    .map(w => parseInt(w.trim()))
                     .filter(w => !isNaN(w));
-                
-                if (!validatePercentages(widths)) {
-                    widths = [];
-                }
             }
 
             parent.postMessage({ 
                 pluginMessage: { 
                     type: 'create-lines',
-                    isUniform,
                     widths,
                     lineGap
                 } 
